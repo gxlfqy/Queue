@@ -1,41 +1,48 @@
 #pragma once
 
-typedef unsigned int uint32;
-typedef unsigned short uint16;
-typedef unsigned char uint8;
+/*
+1. 该对象有线程安全问题
+2. 该对象中的对象并不通用
+3. 长度数据有溢出的可能
+*/
 
-
-template<typename Type>
-class GxQueue
+//多元链表队列
+template<typename Type = int>
+class QueueList
 {
+	//基本类型
 public:
+	//异常类型
 	static enum except{
-		AllocExcept = 1,
+		AllocExcept = 1,		//堆申请失败
+		NoElements = 2,			//队列链中没有元素
+		TypeOverflow			//数据类型溢出
 	};
+	//字节类型
+	typedef unsigned char byte;
 
 protected:
-	class Unit
+	//单元
+	typedef class Node
 	{
 	public:
-		Type * m_data;									//单元的存储地址
-		uint8 front;									//单元头编号
-		uint8 rear;										//单元尾编号
-		Unit * next;									//下一个单元的地址
-		Unit(const uint8 s) throw(int) :next(nullptr)
+		Type * m_data;		//数据地址
+		byte front;			//头编号
+		byte rear;			//尾编号
+		Node * next;		//下一个单元的地址
+		Node(const byte s) throw(int) :next(nullptr), front(0), rear(0)
 		{
+			//为单元申请内存空间
 			m_data = new Type[s];
 			if (nullptr == m_data)
-				throw GxQueue::AllocExcept;
-			front = 0;
-			rear = 0;
+				throw QueueList::AllocExcept;
 		}
-		Unit(const uint8 s, const Type data) throw(int) :Unit(s)
+		Node(const byte s, const Type data) throw(int) :Node(s)
 		{
-			//this->GxUnit::GxUnit(size);
-			memcpy(m_data + 1, &data, sizeof(Type));
-			rear = 1;
+			//将数据存入队列的队尾
+			m_data[++rear] = data;
 		}
-		~Unit()
+		~Node()
 		{
 			if (nullptr != m_data)
 			{
@@ -44,52 +51,83 @@ protected:
 			}
 		}
 		
-	};
-	typedef Unit * PGxUnit;
+	}* PNode;
 
 public:
-	//UnitsMaxSize的范围是[10, 255]
-	GxQueue(uint8 nUnitMaxSize = 0) throw(int) :m_unitsSize((0 == nUnitMaxSize /*|| 10 >= nUnitMaxSize*/) ? 10 : nUnitMaxSize)
+	QueueList(const byte nNodeMaxSize = 0) throw(int) :m_nNodeSize((0 == nNodeMaxSize || 10 >= nNodeMaxSize) ? 10 : nNodeMaxSize)
 	{
-		m_rearUnit = m_headUnit = new Unit(m_unitsSize);
+		m_rear = m_head = new Node(m_nNodeSize);
 	}
-	GxQueue(uint8 nUnitMaxSize, Type data) throw(int) :m_unitsSize((0 == nUnitMaxSize || 10 >= nUnitMaxSize) ? 10 : nUnitMaxSize)
+	QueueList(const byte nNodeMaxSize, const Type data) throw(int) :m_nNodeSize((0 == nNodeMaxSize || 10 >= nNodeMaxSize) ? 10 : nNodeMaxSize)
 	{
-		m_rearUnit = m_headUnit = new Unit(m_unitsSize, data);
+		m_rear = m_head = new Node(m_nNodeSize, data);
 	}
-	void push(Type data) throw(int)
+	~QueueList()
 	{
-		if (nullptr == m_headUnit)
-			m_rearUnit = m_headUnit = new Unit(m_unitsSize, data);
-		//尾单元溢出, 创建新的单元, 关联, 并将数据写入新的单元中
-		else if (m_rearUnit->front == (m_rearUnit->rear + 1) % m_unitsSize)
+		PNode p;
+		if (nullptr != m_head)
 		{
-			PGxUnit newUnit = new Unit(m_unitsSize, data);
-			m_rearUnit = m_rearUnit->next = newUnit;
+			p = m_head;
+			while (p)
+			{
+				delete p;
+				p = m_head->next;
+			}
+			m_rear = m_head = nullptr;
+		}
+	}
+	void push(const Type data) throw(int)
+	{
+		if (nullptr == m_head)
+			m_rear = m_head = new Node(m_nNodeSize, data);
+		//尾单元溢出, 创建新的单元, 关联, 并将数据写入新的单元中
+		else if (m_rear->front == (m_rear->rear + 1) % m_nNodeSize)
+		{
+			PNode newUnit = new Node(m_nNodeSize, data);
+			m_rear = m_rear->next = newUnit;
 		}
 		else
-			m_rearUnit->m_data[++m_rearUnit->rear %= m_unitsSize] = data;
+			m_rear->m_data[++m_rear->rear %= m_nNodeSize] = data;
 	}
-	Type pop()
+	Type pop() throw(int)
 	{
-		//头单元为空, 删除头单元, 并后移头单元
 		Type temp;
-		PGxUnit p;
-		if ((m_headUnit->front + 1) % m_unitsSize == m_headUnit->rear)
+		PNode p;
+		//头单元为空, 删除头单元, 并后移头单元
+		if (nullptr == m_head)
+			throw QueueList::NoElements;
+		if ((m_head->front + 1) % m_nNodeSize == m_head->rear)
 		{
-			temp = m_headUnit->m_data[m_headUnit->rear];
-			p = m_headUnit;
-			m_headUnit = (nullptr == m_headUnit->next) ? m_rearUnit = nullptr, nullptr : m_headUnit->next;
+			temp = m_head->m_data[m_head->rear];
+			p = m_head;
+			m_head = (nullptr == m_head->next) ? m_rear = nullptr, nullptr : m_head->next;
 			delete p;
 		}
 		else
-			temp = m_headUnit->m_data[++m_headUnit->front %= m_unitsSize];
+			temp = m_head->m_data[++m_head->front %= m_nNodeSize];
 		return temp;
 	}
+	long length() const throw(int)
+	{
+		PNode p;
+		long count = 0;
+		if (nullptr == m_head)
+			return 0;
+		p = m_head;
+		while (p)
+		{
+			if (count < 0)
+				throw QueueList::TypeOverflow;
+			count += (p->rear - p->front + m_nNodeSize) % m_nNodeSize;
+			p = p->next;
+		}
+		return count;
+	}
 
+	//成员变量
 protected:
-	Unit * m_headUnit;
-	Unit * m_rearUnit;
-	const uint8 m_unitsSize;
+	Node * m_head;					//头部节点
+	Node * m_rear;					//尾部节点
+	const byte m_nNodeSize;			//节点长度(范围是[10, 255])
 
 };
