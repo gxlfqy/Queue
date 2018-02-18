@@ -14,7 +14,7 @@ class QueueList
 public:
 	//异常类型
 	static enum except{
-		AllocExcept = 1,		//堆申请失败
+		AllocExcept = 1,		//堆申请失败4
 		NoElements = 2,			//队列链中没有元素
 		TypeOverflow = 3		//数据类型溢出
 	};
@@ -52,7 +52,7 @@ protected:
 	}* PNode;
 
 public:
-	QueueList(const byte nNodeMaxSize = 0) throw(int) :m_nNodeSize((0 == nNodeMaxSize /*|| 10 >= nNodeMaxSize*/) ? 10 : nNodeMaxSize), m_front(0), m_rear(0)
+	QueueList(const byte nNodeMaxSize = 0) throw(int) :m_nNodeSize((0 == nNodeMaxSize || 10 >= nNodeMaxSize) ? 10 : nNodeMaxSize), m_front(0), m_rear(0)
 	{
 		m_rearNode = m_headNode = new Node(m_nNodeSize);
 	}
