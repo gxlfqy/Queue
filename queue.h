@@ -11,8 +11,9 @@ public:
 	static enum except{
 		AllocExcept = 1,		//堆申请失败
 		NoElements = 2,			//队列链中没有元素
-		TypeOverflow = 3,		//数据类型溢出
-		IndexOutofBounds = 4	//下标越界
+		TypeOverflow = 4,		//数据类型溢出
+		IndexOutofBounds = 8,	//下标越界
+		UnknowExcept = 16
 	};
 
 	typedef unsigned char byte;
@@ -136,7 +137,7 @@ public:
 
 	void reset()
 	{
-		~QueueList();
+		this->~QueueList<Type>();
 	}
 
 	Type front() const throw(int)
@@ -153,17 +154,36 @@ public:
 		return m_frontNode.m_data[m_rear];
 	}
 
-// 	Type& opertor[](long long i) throw(int)
-// 	{
-// 		uint64 length = this->length();
-// 		//下标越界的判断
-// 		if (i >= length || i < 0 && i + length < 0)
-// 			throw int(QueueList<Type>::IndexOutofBounds);
-// 		//将负下标转化为正下标
-// 		if (i < 0)
-// 			i = (i + length) % length;
-// 		
-// 	}
+	Type& operator[](long long i) throw(int)
+	{
+		uint64 length = this->length();
+		//下标越界的判断
+		if (i >= length || i < 0 && i + length < 0)
+			throw int(QueueList<Type>::IndexOutofBounds);
+		//将负下标转化为正下标
+		if (i < 0)
+			i = (i + length) % length;
+		//单一节点
+		if (m_frontNode == m_rearNode)
+		{
+			i = (i + m_nNodeSize) % m_nNodeSize;
+			return *(m_frontNode->m_data + i);
+		}
+		else
+		{
+			PNode p;
+			p = m_frontNode;
+			i += m_front;
+			while (i > m_nNodeSize - 1 && p->next)
+			{
+				i -= m_nNodeSize - 1;
+				p = p->next;
+			}
+			if (i < 0)
+				throw int(QueueList<Type>::UnknowExcept);
+			return *(p->m_data + i + 1);
+		}
+	}
 
 	void push(const Type & data) throw(int)
 	{
